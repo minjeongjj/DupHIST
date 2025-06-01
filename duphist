@@ -1,0 +1,2 @@
+#!/bin/bash
+perl $PREFIX/bin/scripts/main_pipeline_ver_perl.pl "$@"
