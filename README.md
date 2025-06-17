@@ -25,7 +25,7 @@ DupHIST supports both global and per-family clustering modes, and enables functi
 
 ## 📦 Installation
 
-You can install DupHIST using [Bioconda](https://bioconda.github.io/):
+You can install DupHIST using [Bioconda](https://anaconda.org/bioconda/duphist):
 
 ```bash
 conda install -c bioconda duphist
@@ -33,7 +33,7 @@ conda install -c bioconda duphist
 
 ### 🔗 External Dependency: KaKs_Calculator 2.0
 
-DupHIST requires [KaKs_Calculator 2.0](https://ngdc.cncb.ac.cn/biocode/tools/BT000001) to compute pairwise synonymous substitution rates (Ks).  
+DupHIST requires [KaKs_Calculator 2.0](https://github.com/kullrich/kakscalculator2) to compute pairwise synonymous substitution rates (Ks).
 This tool **is not included in the Conda package** and must be downloaded and compiled manually from the official website.
 
 After downloading, you do **not** need to add it to your `PATH`.  
