@@ -1,0 +1,3 @@
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+perl "$SCRIPT_DIR/scripts/main_pipeline_ver_perl.pl" "$@"

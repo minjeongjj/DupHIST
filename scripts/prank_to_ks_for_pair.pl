@@ -13,7 +13,7 @@ my $tempAXT = $ARGV[9];
 my $tempKaks = $ARGV[10];
 my $path = $ARGV[11];
 
-system("$stPrank -d=$tempCDS/$stPrefix.CDS.fasta -f=fasta -codon -o=$tempBest/$stPrefix");
+system("prank -d=$tempCDS/$stPrefix.CDS.fasta -f=fasta -codon -o=$tempBest/$stPrefix");
 #	-iterate=$prankIter");
 sleep($sleepTime);
 system("perl $path/parseFastaIntoAXT.pl $tempBest/$stPrefix.best.fas");

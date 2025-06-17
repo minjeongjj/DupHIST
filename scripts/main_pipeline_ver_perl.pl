@@ -1,4 +1,5 @@
 use strict;
+use FindBin;
 
 use Config::Tiny;
 use Data::Dumper qw(Dumper);
@@ -8,9 +9,7 @@ use List::Util qw/ min max /;
 my $filename = shift or die "Usage: $0 FILENAME\n";
 my $config = Config::Tiny->read( $filename, 'utf8' );
 
-my @current_script = split /\//, $0;
-pop @current_script;
-my $script_path = join "/", @current_script;
+my $script_path = $FindBin::Bin;
 
 my $temp_path = "$config->{required_option}{Output_directory}/$config->{Result}{temp_path}";
 my $temp_sh = "$temp_path/temp_sh";
