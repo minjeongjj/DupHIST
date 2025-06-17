@@ -53,7 +53,7 @@ kaks = /your/path/to/KaKs_Calculator
 Once DupHIST is installed and input files are prepared, run the pipeline using a configuration file:
 
 ```bash
-duplication_pipeline --config config.txt
+duphist config.txt
 ```
 
 ### 🔧 Example `config.txt`:
