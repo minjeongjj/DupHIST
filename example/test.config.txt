@@ -21,7 +21,7 @@ kaks = /your/path/to/KaKs_Calculator
 R = Rscript
 
 [Result]
-result_filename = result_table_all
+result_filename = result_table_all.tsv
 temp_path = temp_files
 
 [Thread]

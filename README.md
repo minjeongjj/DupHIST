@@ -108,7 +108,11 @@ ATGAGAAAAGGAAATGAAGAGAAGAATTACCGTGAAGAAGAATATTTGCAACTCCCTCTGGATCT...
 ```
 
 - Each entry must begin with a unique gene ID (e.g., `ATHA_10034`).
-- Sequences must represent **coding regions only** (no introns, UTRs, or translations).
+- ⚠️ **Avoid using special characters** (e.g., colons, pipes) or **overly long IDs** in gene names.  
+  Some tools such as PRANK or KaKs_Calculator2 may fail or misinterpret headers with such patterns.
+- CDS sequences must:
+  - Represent **coding regions only** (no introns, UTRs, or protein translations)
+  - Be **a multiple of 3 in length**, as required by codon-aware tools like PRANK and KaKs_Calculator2
 
 ### 🧪 2. Gene Group Information File
 
