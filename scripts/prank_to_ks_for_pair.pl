@@ -13,7 +13,11 @@ my $tempAXT = $ARGV[9];
 my $tempKaks = $ARGV[10];
 my $path = $ARGV[11];
 
+<<<<<<< HEAD
 system("prank -d=$tempCDS/$stPrefix.CDS.fasta -f=fasta -codon -o=$tempBest/$stPrefix");
+=======
+system("$stPrank -d=$tempCDS/$stPrefix.CDS.fasta -f=fasta -codon -o=$tempBest/$stPrefix");
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 #	-iterate=$prankIter");
 sleep($sleepTime);
 system("perl $path/parseFastaIntoAXT.pl $tempBest/$stPrefix.best.fas");

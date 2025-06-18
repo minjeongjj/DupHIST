@@ -70,6 +70,10 @@ else
 system("rm -rf duplication_progress.log");
 
 system("mkdir -p $config->{required_option}{Output_directory}");
+<<<<<<< HEAD
+=======
+system("mkdir -p $config->{required_option}{Output_directory}/$config->{Result}{result_dendrogram_dir}");
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 system("mkdir -p $temp_path");
 system("mkdir -p $temp_sh");
 system("mkdir -p $temp_cds");
@@ -250,9 +254,18 @@ if($step <=2)
 	}
 	else
 	{
+<<<<<<< HEAD
 		print LOG "All CDS pairs may not have been analysis. You should check it out.\n";
                 print LOG "Error 2\n";
                 exit();
+=======
+		my $cds_file_count = $#cds_files + 1;
+		my $ks_file_count = $#ks_files + 1;
+		print LOG "All CDS pairs may not have been analysis. You should check it out.\n";
+		print LOG "Among $cds_file_count CDS pairs, $ks_file_count CDS pairs of alignment & Ks value calculation Done\n";
+                print LOG "Error 2\n";
+		#exit();
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 	}
 	close(LOG);
 }
@@ -263,7 +276,48 @@ if($step <= 3)
         print LOG "\nMatrix file start...\n";
         close(LOG);
 
+<<<<<<< HEAD
 	system("perl $script_path/ks_to_matrix.pl $temp_kaks $temp_kaks $temp_mat $script_path $groupinfo_path");
+=======
+	## convert ks to matrix by thread
+	my @input_groupinfo = glob ("$groupinfo_path/*.txt");
+	my $group_number = scalar keys @input_groupinfo;
+	my $lim = int ($group_number / $config->{Thread}{thread_num}) + 1;
+
+	my $ncount = 0;
+	my $nthread = 0;
+	open (TMC, ">$temp_sh/temp_converting_ks.$nthread.sh");
+	for (my $i=0; $i<@input_groupinfo; $i++)
+	{
+		if ($ncount < $lim)
+		{
+			$ncount ++;
+			print TMC ("perl $script_path/ks_to_matrix.pl $temp_kaks $temp_kaks $temp_mat $script_path $input_groupinfo[$i]\n");
+		}
+		else
+		{
+			close TMC;
+			$nthread ++;
+			$ncount = 0;
+			open (TMC, ">$temp_sh/temp_converting_ks.$nthread.sh");
+
+			$ncount ++;
+			print TMC ("perl $script_path/ks_to_matrix.pl $temp_kaks $temp_kaks $temp_mat $script_path $input_groupinfo[$i]\n");
+		}
+	}
+	close TMC;
+
+	open (Converting_Ks, ">$temp_sh/Run_converting_ks.sh");
+	my @temp_converting_ks_sh = glob ("$temp_sh/temp_converting_ks.*sh");
+	for (my $i=0; $i<@temp_converting_ks_sh; $i++)
+	{
+		print Converting_Ks "sh $temp_converting_ks_sh[$i] &\n";
+	}
+	print Converting_Ks "wait;\n";
+	close Converting_Ks;
+
+	system ("sh $temp_sh/Run_converting_ks.sh");
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 	
 	open(LOG, ">>duplication_progress.log");
         print LOG "\nMatrix file Done\n";
@@ -339,6 +393,11 @@ if($step <=4)
 		system("perl $script_path/getDuplicationHistory.pl $optimal_path/");
 		system("perl $script_path/getKAKSRatio_Avrg_mute.pl each $optimal_path/");
 		system("perl $script_path/1.Combine_KS_muteKA_Avrg.pl $optimal_path/ $config->{required_option}{Output_directory}/$config->{Result}{result_filename}");
+<<<<<<< HEAD
+=======
+
+		system ("cp $optimal_path/*/*nwk $config->{required_option}{Output_directory}/$config->{Result}{result_dendrogram_dir}");
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 	}
 
 	elsif($config->{statistical_option}{Hcluster_method} eq "all")
@@ -362,6 +421,11 @@ if($step <=4)
 		system("perl $script_path/getDuplicationHistory.pl $hcluster_path/$optimal_method_all");
 		system("perl $script_path/getKAKSRatio_Avrg_mute.pl $optimal_method_all $hcluster_path/$optimal_method_all");
 		system("perl $script_path/1.Combine_KS_muteKA_Avrg.pl $hcluster_path/$optimal_method_all $config->{required_option}{Output_directory}/$config->{Result}{result_filename}");
+<<<<<<< HEAD
+=======
+
+		system ("cp $hcluster_path/$optimal_method_all/*/*nwk $config->{required_option}{Output_directory}/$config->{Result}{result_dendrogram_dir}");
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 	}	
 	open(LOG, ">>duplication_progress.log");
         print LOG "H-clustering Done\n\n";

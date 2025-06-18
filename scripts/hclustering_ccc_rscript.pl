@@ -48,6 +48,16 @@ for (my $j=0; $j<@method_type; $j++)
 	$R->run(q'write.table (hc$height, b.file, sep=" ")');
 	$R->run(q'write.table (hc$labels, c.file, sep=" ")');
 	$R->run(q'write.table (hc$merge, d.file, sep=" ")');
+<<<<<<< HEAD
+=======
+
+	## save nwk tree
+	$R->run(q'if (!requireNamespace("ape", quietly=TRUE)) install.packages("ape", repos="http://cran.us.r-project.org")');
+	$R->run(q'library(ape)');
+	$R->set('nwk_file', "$output_path/$method_type[$j]/$prefix/$output_file.$method_type[$j].nwk");
+	$R->run(q'tree <- as.phylo(hc)');
+	$R->run(q'write.tree(tree, file=nwk_file)');
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 	
 	## calculate cophenetic correlation coefficient
 	$R->run(q'ccc <- cor(as.dist(data),cophenetic(hc))');
@@ -84,6 +94,16 @@ foreach my $ccc (sort {$b <=> $a} keys %ccc)
 		$R->run(q'write.table (hc$height, b.file, sep=" ")');
 		$R->run(q'write.table (hc$labels, c.file, sep=" ")');
 		$R->run(q'write.table (hc$merge, d.file, sep=" ")');
+<<<<<<< HEAD
+=======
+
+		## save nwk tree
+		$R->run(q'if (!requireNamespace("ape", quietly=TRUE)) install.packages("ape", repos="http://cran.us.r-project.org")');
+		$R->run(q'library(ape)');
+		$R->set('nwk_file', "$output_path/optimal_each/$prefix/$output_file.$method_type.nwk");
+		$R->run(q'tree <- as.phylo(hc)');
+		$R->run(q'write.tree(tree, file=nwk_file)');
+>>>>>>> 00c82b0... Release version 1.0.4: added dendrogram output, multithreading, and CDS triplet filter
 	
 		last;
 	}

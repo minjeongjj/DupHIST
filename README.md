@@ -30,25 +30,26 @@ You can install DupHIST using [Bioconda](https://anaconda.org/bioconda/duphist):
 ```bash
 conda install -c bioconda duphist
 ```
+### 🔗 KaKs_Calculator 2.0 Usage
 
-### 🔗 External Dependency: KaKs_Calculator 2.0
+DupHIST includes **KaKs_Calculator v2.0** by default, so users **do not need to install it separately** or specify an external path.
 
-DupHIST requires [KaKs_Calculator 2.0](https://sourceforge.net/projects/kakscalculator2/) to compute pairwise synonymous substitution rates (Ks).
-This tool must be downloaded and **compiled manually** from the official website.
+However, if you prefer to use a newer version such as **KaKs_Calculator v3.0**, you may download it manually from the official website:
 
-After downloading, you do **not** need to add it to your `PATH`.  
-Instead, simply provide the path to the `KaKs_Calculator` binary in your configuration file (`config.txt`):
+[KaKs_Calculator v3.0 Download (CNCB/NGDC)](https://ngdc.cncb.ac.cn/biocode/tools/BT000001)
 
-```ini
+You do **not** need to add it to your PATH.  
+Simply specify the path to the KaKs_Calculator binary in your configuration file `config.txt`:
+
+```
 [program_path]
 kaks = /your/path/to/KaKs_Calculator
 ```
-
-> ⚠️ DupHIST will return an error if the `kaks` path is not specified or incorrect.
+⚠️ DupHIST will return an error if the `kaks` path is not specified or is incorrect when using a custom version.
 
 ---
 
-## 🚀 Basic Usage
+## ▶️ Quick Start
 
 Once DupHIST is installed and input files are prepared, run the pipeline using a configuration file:
 
@@ -79,11 +80,12 @@ sleep_time = 10
 [program_path]
 PRANK = prank
 perl = perl
-kaks = /your/path/to/KaKs_Calculator
+kaks = KaKs_Calculator
 R = Rscript
 
 [Result]
-result_filename = result_table_all
+result_filename = result_table_all.txt
+result_dendrogram_dir = dendrograms
 temp_path = temp_files
 
 [Thread]
@@ -129,7 +131,7 @@ ATHA    G1      ATHA_18753
 ...
 ```
 
-- **Column 1**: species abbreviation (e.g., `ATHA`)
+- **Column 1**: species abbreviation (e.g., `ATHA`). Must uniquely identify each species and remain consistent across the dataset.
 - **Column 2**: group ID (e.g., `G1`)
 - **Column 3**: gene ID matching the CDS FASTA headers
 
@@ -137,7 +139,8 @@ ATHA    G1      ATHA_18753
 
 DupHIST outputs the following files:
 
-- `result_table_all.tsv`: Final summary table of all duplication pairs and clustering results
+- `result_table_all.txt`: Final summary table of all duplication pairs and clustering results
+- `dendrograms/`: Includes dendrograms for each gene family, represented in Newick (.nwk) format
 - `temp_files/`: Contains intermediate outputs including pairwise Ks values and clustering matrices
 
 All outputs are saved under the directory specified in `Output_directory` in your config file.
@@ -152,21 +155,19 @@ A minimal example dataset is provided in the `example/` directory to help users 
 
 ```bash
 cd example
-bash run_example.sh
+duphist test.config.txt
 ```
 
 This script will:
 - Use `test.cds.fa` and `test.groupinfo` as input
 - Run DupHIST with the provided `config.txt`
-- Save results in the `Results/` and `temp_files/` directories
+- Save results in the `Results/` directories
 
 ### 📁 Files included in `example/`:
 - `test.cds.fa` — Coding sequence (CDS) FASTA file
 - `test.groupinfo` — Gene group assignment file
-- `config.txt` — Configuration file with appropriate parameters and program paths
+- `test.config.txt` — Configuration file with appropriate parameters and program paths
 - `run_example.sh` — Shell script to execute the pipeline
-
-> ✅ Tip: Make sure to update the `kaks` path in `config.txt` to match the location where you installed **KaKs_Calculator 2.0**
 
 ---
 
