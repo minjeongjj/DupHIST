@@ -33,8 +33,8 @@ conda install -c bioconda duphist
 
 ### 🔗 External Dependency: KaKs_Calculator 2.0
 
-DupHIST requires [KaKs_Calculator 2.0](https://github.com/kullrich/kakscalculator2) to compute pairwise synonymous substitution rates (Ks).
-This tool **is not included in the Conda package** and must be downloaded and compiled manually from the official website.
+DupHIST requires [KaKs_Calculator 2.0](https://sourceforge.net/projects/kakscalculator2/) to compute pairwise synonymous substitution rates (Ks).
+This tool must be downloaded and **compiled manually** from the official website.
 
 After downloading, you do **not** need to add it to your `PATH`.  
 Instead, simply provide the path to the `KaKs_Calculator` binary in your configuration file (`config.txt`):
