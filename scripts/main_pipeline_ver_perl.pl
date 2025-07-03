@@ -32,6 +32,20 @@ my $ccc_path = "$temp_path/ccc";
 #print "$config->{program_path}{PRANK}\n";
 my $prefer_order = "$config->{statistical_option}{preferred_method_order}";
 
+## Pre-check input files
+if (-e "duplication_precheck.log")
+{
+	system ("rm -rf duplication_precheck.log");
+}
+
+system ("perl $script_path/precheck.pl $config->{required_option}{CDS_path} $config->{required_option}{Group_information} > duplication_precheck.log");
+
+if (-s "duplication_precheck.log")
+{
+	my $divider = "=" x 30;
+	die "$divider\n[FATAL] Precheck failed: invalid input files.\nPlease correct the problems in duplication_precheck.log before running duphist.\n$divider\n";
+}
+
 ## Read log file & Continue
 my $step;
 if (not(-f "duplication_progress.log"))

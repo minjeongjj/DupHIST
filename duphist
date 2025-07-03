@@ -1,3 +1,13 @@
 #!/bin/bash
+
+# Determine script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Show usage when no arguments or help flags are passed
+if [ $# -eq 0 ] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+  echo "Usage: duphist [config_file_name]"
+  exit 0
+fi
+
+# Run the Perl script with passed arguments
 perl "$SCRIPT_DIR/scripts/main_pipeline_ver_perl.pl" "$@"

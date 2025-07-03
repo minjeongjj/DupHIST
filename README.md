@@ -1,66 +1,60 @@
 # DupHIST
 
-**DupHIST (Duplication History Inference via Substitution-based Timeframe)** is a fully automated pipeline that estimates the relative duplication time and order among paralogous genes within user-defined gene families. These inferences are based on pairwise synonymous substitution rates (Ks).
-
-The pipeline performs the following key steps:
-1. Calculates all pairwise Ks values for coding sequences within each gene family and converts them into distance matrices.
-2. Applies multiple hierarchical clustering methods and selects the optimal strategy using the cophenetic correlation coefficient (CCC).
-3. Outputs dendrograms and Ks tables representing the inferred duplication hierarchy for each gene family.
-
-DupHIST supports both global and per-family clustering modes, and enables functional interpretation of duplication history through integration with gene/domain annotations.
+**DupHIST (Duplication History Inference via Substitution-based Timeframe)** is an automated pipeline for inferring the relative duplication timing and order among paralogous genes within user-defined gene families. It leverages pairwise synonymous substitution rates (**Ks**) to reconstruct duplication history.
 
 ---
 
-## 🔧 Features
+## 🔍 Key Features
 
-- Computes pairwise synonymous substitution rates (Ks) between paralogous genes within user-defined gene families
-- Constructs distance matrices and performs hierarchical clustering to infer duplication order
-- Supports multiple clustering strategies (e.g., average, complete, single linkage) and selects the optimal method using cophenetic correlation coefficient (CCC)
-- Offers both global and per-family clustering modes for flexible inference resolution
-- Provides output files including Ks matrices, duplication hierarchies (dendrograms), and summary tables
-- Compatible with external tools such as PRANK (for codon alignment) and KaKs_Calculator 2.0 (for Ks estimation)
-- Facilitates downstream analysis through integration with gene/domain annotation data
+- Calculates pairwise Ks values for coding sequences within gene families
+- Constructs distance matrices and infers duplication order via hierarchical clustering
+- Supports various clustering methods (e.g., average, complete, single linkage), with **cophenetic correlation coefficient (CCC)** used to select the optimal one
+- Offers both **global** and **per-family** clustering modes
+- Generates dendrograms, Ks tables, and summary outputs
+- Compatible with tools like **PRANK** (for codon alignment) and **KaKs_Calculator 2.0** (for Ks estimation)
+- Supports downstream integration with gene/domain annotation data
 
 ---
 
 ## 📦 Installation
 
-You can install DupHIST using [Bioconda](https://anaconda.org/bioconda/duphist):
+Install via [Bioconda](https://anaconda.org/bioconda/duphist):
 
 ```bash
 conda install -c bioconda duphist
 ```
-### 🔗 KaKs_Calculator 2.0 Usage
 
-DupHIST includes **KaKs_Calculator v2.0** by default, so users **do not need to install it separately** or specify an external path.
+---
 
-> **Note:** KaKs_Calculator v3.0 is not available as a Conda package.  
-> Therefore, **v2.0 is bundled** with DupHIST to ensure compatibility and ease of use.
+## 🧪 KaKs_Calculator Usage
 
-However, if you prefer to use a newer version such as **KaKs_Calculator v3.0**, you may download it manually from the official website:
+**DupHIST includes KaKs_Calculator v2.0 by default.**  
+You **do not need** to install it separately or specify a path.
 
-[KaKs_Calculator v3.0 Download (CNCB/NGDC)](https://ngdc.cncb.ac.cn/biocode/tools/BT000001)
+> ⚠️ **Note:** KaKs_Calculator v3.0 is not available via Conda.  
+> If you prefer v3.0, download it manually and specify its path in `config.txt`.
 
-You do **not** need to add it to your PATH.  
-Simply specify the path to the KaKs_Calculator binary in your configuration file `config.txt`:
-
+**Example:**
 ```
 [program_path]
 kaks = /your/path/to/KaKs_Calculator
 ```
-⚠️ DupHIST will return an error if the `kaks` path is not specified or is incorrect when using a custom version.
+
+If you use a custom version, DupHIST will raise an error if the path is incorrect or missing.
 
 ---
 
 ## ▶️ Quick Start
 
-Once DupHIST is installed and input files are prepared, run the pipeline using a configuration file:
+After preparing your input files and configuration:
 
 ```bash
 duphist config.txt
 ```
 
-### 🔧 Example `config.txt`:
+---
+
+## ⚙️ Sample `config.txt`
 
 ```ini
 [required_option]
@@ -117,8 +111,10 @@ ATGAGAAAAGGAAATGAAGAGAAGAATTACCGTGAAGAAGAATATTTGCAACTCCCTCTGGATCT...
 - ⚠️ **Avoid using special characters** (e.g., colons, pipes) or **overly long IDs** in gene names.  
   Some tools such as PRANK or KaKs_Calculator2 may fail or misinterpret headers with such patterns.
 - CDS sequences must:
-  - Represent **coding regions only** (no introns, UTRs, or protein translations)
-  - Be **a multiple of 3 in length**, as required by codon-aware tools like PRANK and KaKs_Calculator2
+- Contain **only coding regions** (no introns, UTRs, or translations)
+- Have a length that is a **multiple of 3**, as required by codon-aware tools like PRANK and KaKs_Calculator2
+
+  ⚠️ Gene sequences not divisible by 3 will be automatically excluded from analysis.
 
 ### 🧪 2. Gene Group Information File
 
@@ -138,60 +134,98 @@ ATHA    G1      ATHA_18753
 - **Column 2**: group ID (e.g., `G1`)
 - **Column 3**: gene ID matching the CDS FASTA headers
 
+### 🔎 Precheck Validation
+
+Before executing the main pipeline, **DupHIST performs an automatic precheck step** to validate the input files. This step ensures the integrity and consistency of user-provided data and prevents downstream errors.
+
+The precheck verifies the following:
+
+1. **Naming rules**
+   - Species abbreviations and group IDs must **not contain underscores (`_`)**.
+   - DupHIST uses underscores internally to combine species and group IDs (e.g., `ATHA_G1`), so underscores in input names may cause parsing errors.
+
+2. **Group composition**
+   - Each species–group combination must include **at least two genes**.
+   - Groups with only one gene are considered invalid and will be blocked.
+
+3. **Gene consistency**
+   - All gene IDs listed in the group information file must have corresponding entries in the CDS file.
+   - Any mismatch or missing gene will trigger an error.
+
+Precheck results are written to a log file named **`duphist_precheck.log`**.
+
+- If **no errors are found**, DupHIST proceeds to the main analysis.
+- If **any issues are detected**, they will be reported in the log, and **the pipeline will terminate** without starting the main computation.
+
+> 🛠️ Please check `duphist_precheck.log` before interpreting missing outputs or errors.
+
 ### 📤 Output Files
 
-DupHIST outputs the following files:
+DupHIST generates the following output files:
 
-- `result_table_all.txt`: Final summary table of all duplication pairs and clustering results
-- `dendrograms/`: Includes dendrograms for each gene family, represented in Newick (.nwk) format
-- `temp_files/`: Contains intermediate outputs including pairwise Ks values and clustering matrices
+- **`result_table_all.txt`**: Summary table listing all pairwise duplication comparisons and inferred clusters
+- **`dendrograms/`**: Dendrograms for each gene family (Newick format)
+- **`temp_files/`**: Intermediate results (e.g., Ks matrices and alignments)
 
-All outputs are saved under the directory specified in `Output_directory` in your config file.
+### 📄 Example: `result_table_all.txt`
+
+This file summarizes Ks values and inferred duplication clusters for each gene pair or node.
+
+**Example:**
+```
+ATHA    G1      ATHA_11701      ATHA_13566      0.619739
+ATHA    G1      ATHA_12068      ATHA_15941      1.81918
+ATHA    G1      ATHA_18753      G2              2.18202
+ATHA    G1      G1              G3              2.64991
+ATHA    G2      ATHA_1013       ATHA_10965      1.30532
+...
+```
+
+- **Column 1**: species abbreviation (e.g., `ATHA`)  
+- **Column 2**: group ID (e.g., `G1`)  
+- **Column 3**: first gene or internal node  
+- **Column 4**: second gene or internal node  
+- **Column 5**: synonymous substitution rate (**Ks**)  
+
+> 🔎 **Note:** `G1`, `G2`, etc. are internal nodes automatically assigned by R’s `hclust` and represent inferred duplication events—not actual gene names.
 
 ---
 
 ## 🧪 Example Dataset
 
-A minimal example dataset is provided in the `example/` directory to help users test and understand how DupHIST works.
+An example dataset is provided in the `example/` directory.
 
-### ▶️ To run the example:
+To run it:
 
 ```bash
 cd example
 duphist test.config.txt
 ```
 
-This script will:
-- Use `test.cds.fa` and `test.groupinfo` as input
-- Run DupHIST with the provided `config.txt`
-- Save results in the `Results/` directories
-
-### 📁 Files included in `example/`:
-- `test.cds.fa` — Coding sequence (CDS) FASTA file
-- `test.groupinfo` — Gene group assignment file
-- `test.config.txt` — Configuration file with appropriate parameters and program paths
-- `run_example.sh` — Shell script to execute the pipeline
+Includes:
+- `test.cds.fa` — coding sequence file  
+- `test.groupinfo` — group mapping file  
+- `test.config.txt` — ready-to-use configuration  
+- `run_example.sh` — shell script to run the pipeline
 
 ---
 
 ## 📄 License
 
 This project is licensed under the **MIT License**.  
-You are free to use, modify, and distribute the code under the terms of the license.
-
-See the full license text in [LICENSE](./LICENSE).
+See [LICENSE](./LICENSE) for details.
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions, feature suggestions, and bug reports!
+We welcome contributions, feature requests, and bug reports.
 
-If you would like to contribute to DupHIST:
+To contribute:
 
-1. Fork the repository
-2. Create a new feature or bugfix branch
-3. Submit a pull request with a clear description of your changes
+1. Fork the repository  
+2. Create a feature or fix branch  
+3. Submit a pull request with a clear explanation
 
-For major changes, please open an issue first to discuss your ideas.  
-We also welcome example data contributions to improve testing and usability.
+For major changes, please open an issue first.  
+Example data contributions are also appreciated!
