@@ -21,6 +21,8 @@
 Install via [Bioconda](https://anaconda.org/bioconda/duphist):
 
 ```bash
+conda create -n duphist
+conda activate duphist
 conda install -c bioconda duphist
 ```
 
