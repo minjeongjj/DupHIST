@@ -4,7 +4,8 @@ use strict;
 use File::Basename;
 
 my $cds_file = $ARGV[0];
-my $group_info = $ARGV[1];
+my $pep_file = $ARGV[1];
+my $group_info = $ARGV[2];
 
 my $divider = "=" x 30;
 
@@ -130,7 +131,6 @@ while (my $line = <CDS>)
 }
 close CDS;
 
-
 my $cnt = "";
 my $group_gene_cnt = scalar keys %group_gene;
 my $cds_gene_cnt = scalar keys %cds;
@@ -207,6 +207,115 @@ foreach my $gene_id (sort {$a cmp $b} keys %cds)
 			print "\n" if ($temp_cnt1 ne "");
 
 			print "-- Gene IDs found in CDS file but missing in group info:\n";
+		}
+
+		print "$gene_id\n";
+	}
+}
+
+if ($total_cnt ne "")
+{
+	my $divider = "=" x 30;
+
+	print "\n" if $total_cnt > 1;
+	print "$divider\n";
+	print "Please fix the issues above and rerun duphist.\n";
+	print "$divider\n";
+}
+
+
+my ($gene_id, %pep);
+open (PEP, "$pep_file");
+while (my $line = <PEP>)
+{
+	chomp $line;
+	if ($line =~ />([^\s\t]+)/)
+	{
+		$gene_id = $1;
+	}
+	else
+	{
+		$pep{$gene_id} .= $line;
+	}
+}
+close PEP;
+
+my $cnt = "";
+my $group_gene_cnt = scalar keys %group_gene;
+my $pep_gene_cnt = scalar keys %pep;
+if ($group_gene_cnt != $pep_gene_cnt)
+{
+	$cnt ++;
+	$total_cnt ++;
+	if ($cnt == 1)
+	{
+		print "\n" if $total_cnt > 1;
+		print "$divider\n";
+		print "[INVALID FORMAT] Inconsistent gene entries between group info and PEP file.\n";
+		print "'duphist' requires every gene listed in the group info file to have a corresponding PEP entry.\n";
+		print "Synchronization check failed due to missing or unmatched gene IDs.\n";
+		print "Please review the discrepancies below.\n";
+		#print "$divider\n";
+		print "\n";
+	}
+
+	print "Total genes in group info: $group_gene_cnt\n";
+	print "Total genes with PEP entries: $pep_gene_cnt\n";
+}
+
+my $cnt = "";
+my $temp_cnt1 = "";
+foreach my $gene_id (sort {$a cmp $b} keys %group_gene)
+{	
+	if ($pep{$gene_id} eq "")
+	{
+		$cnt ++;
+		$total_cnt ++;
+		if ($cnt == 1)
+		{
+			print "\n" if $total_cnt > 1;
+			print "$divider\n";
+			print "[INVALID FORMAT] Gene synchronization failed between group info and PEP file.\n";
+			print "Before running, 'duphist' checks if all gene IDs are matched across input files.\n";
+			print "The following gene entries are inconsistent and must be removed or corrected.\n";
+			#print "$divider\n";
+			print "\n";
+		}
+
+		$temp_cnt1 ++;
+		if ($temp_cnt1 == 1)
+		{
+			print "-- Gene IDs found in group info but missing in PEP:\n";
+		}
+	
+		print "$gene_id\n";
+	}
+}
+
+my $temp_cnt2 = "";
+foreach my $gene_id (sort {$a cmp $b} keys %pep)
+{	
+	if ($group_gene{$gene_id} eq "")
+	{
+		$cnt ++;
+		$total_cnt ++;
+		if ($cnt == 1)
+		{
+			print "\n" if $total_cnt > 1;
+			print "$divider\n";
+			print "[INVALID FORMAT] Gene synchronization failed between group info and PEP file.\n";
+			print "Before running, 'duphist' checks if all gene IDs are matched across input files.\n";
+			print "The following gene entries are inconsistent and must be removed or corrected.\n";
+			#print "$divider\n";
+			print "\n";
+		}
+
+		$temp_cnt2 ++;
+		if ($temp_cnt2 == 1)
+		{
+			print "\n" if ($temp_cnt1 ne "");
+
+			print "-- Gene IDs found in PEP file but missing in group info:\n";
 		}
 
 		print "$gene_id\n";

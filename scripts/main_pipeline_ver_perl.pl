@@ -6,39 +6,26 @@ use Data::Dumper qw(Dumper);
 use Cwd 'abs_path';
 use List::Util qw/ min max /;
 
+use POSIX qw(strftime);
+
 my $filename = shift or die "Usage: $0 FILENAME\n";
 my $config = Config::Tiny->read( $filename, 'utf8' );
 
 my $script_path = $FindBin::Bin;
 
-my $temp_path = "$config->{required_option}{Output_directory}/$config->{Result}{temp_path}";
+my $temp_path = "$config->{required_option}{output_dir}/$config->{Result}{temp_path}";
+my $temp_pep = "$temp_path/pep_for_align";
+my $temp_msa = "$temp_path/msa";
 my $temp_sh = "$temp_path/temp_sh";
-#$config->{Temp_folders}{bash_path}";
-my $temp_cds = "$temp_path/CDS_for_alignment";
-#$config->{Temp_folders}{cds_path}";
-my $temp_best = "$temp_path/best.fas";
-#$config->{Temp_folders}{alignment_result_path}";
-my $temp_axt = "$temp_path/axt";
-#$config->{Temp_folders}{axt_path}";
-my $temp_kaks = "$temp_path/Ks_value";
-#$config->{Temp_folders}{ks_value_path}";
-my $temp_mat = "$temp_path/matrices";
-#$config->{Temp_folders}{matrix_path}";
-my $groupinfo_path = "$temp_path/groupinfo";
-#$config->{Temp_folders}{groupinfo_path}";
-my $hcluster_path = "$temp_path/hcluster";
-#$config->{Temp_folders}{Hcluster_path}";
-my $ccc_path = "$temp_path/ccc";
-#print "$config->{program_path}{PRANK}\n";
-my $prefer_order = "$config->{statistical_option}{preferred_method_order}";
+my $temp_tree = "$temp_path/temp_tree";
+my $temp_raw_nwk = "$temp_path/temp_raw_nwk";
+my $temp_multi = "$temp_path/temp_multi";
+my $temp_replace = "$temp_path/temp_replace";
+my $temp_revise_nwk = "$temp_path/revised_nwk";
+my $temp_cds = "$temp_path/cds_prank_ks";
+my $temp_smooth = "$temp_path/smoothing";
 
-## Pre-check input files
-if (-e "duplication_precheck.log")
-{
-	system ("rm -rf duplication_precheck.log");
-}
-
-system ("perl $script_path/precheck.pl $config->{required_option}{CDS_path} $config->{required_option}{Group_information} > duplication_precheck.log");
+system ("perl $script_path/precheck.pl $config->{required_option}{cds_fasta} $config->{required_option}{pep_fasta} $config->{required_option}{group_info} > duplication_precheck.log");
 
 if (-s "duplication_precheck.log")
 {
@@ -58,11 +45,11 @@ else
 	while(my $stLine = <LOG>)
 	{
 		chomp $stLine;
-		if($stLine =~ /CDS file Done/ || $stLine =~ /Error 1/)
+		if($stLine =~ /DupHIST Step1/)
 		{
 			$step = 2;
 		}
-		elsif($stLine =~ /Alignment & Ks value calculation Done/ || $stLine =~ /Error 2/)
+		elsif($stLine =~ /DupHIST Step2/)
 		{
 			$step = 3;
 		}
@@ -79,351 +66,415 @@ else
 	close(LOG);
 }
 
-#$step = 4;
-
-system("rm -rf duplication_progress.log");
-
-system("mkdir -p $config->{required_option}{Output_directory}");
-system("mkdir -p $config->{required_option}{Output_directory}/$config->{Result}{result_dendrogram_dir}");
-system("mkdir -p $temp_path");
+system("mkdir -p $config->{required_option}{output_dir}");
+system("mkdir -p $temp_pep");
+system("mkdir -p $temp_msa");
 system("mkdir -p $temp_sh");
+system("mkdir -p $temp_tree");
+system("mkdir -p $temp_raw_nwk");
+system("mkdir -p $temp_multi");
+system("mkdir -p $temp_replace");
+system("mkdir -p $temp_revise_nwk");
 system("mkdir -p $temp_cds");
-system("mkdir -p $temp_best");
-system("mkdir -p $temp_axt");
-system("mkdir -p $temp_kaks");
-system("mkdir -p $temp_mat");
-system("mkdir -p $groupinfo_path");
-system("mkdir -p $hcluster_path");
-system("mkdir -p $ccc_path");
+system("mkdir -p $temp_smooth");
+
+my $total_start_time = time();
 
 my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime;
 $year += 1900;
 $mon += 1;
-my $gi_sum = 0;
 if ($step == 1)
 {
 	open(LOG, ">duplication_progress.log");
 	print LOG "\n\n$year-$mon-$mday    Duplication time calculation Start..\n\n\n\n";
 	close(LOG);
-	system("python3 $script_path/1.split_groupinfo.py $filename");
-	
-	#my $gi_sum = 0;
-	my %gi_hash = ();
-	
-	open(GROUP, "$temp_path/group_info.stat");
-	while(my $stLine = <GROUP>)
-	{
-		chomp $stLine;
-		my @stInfo = split /\s/, $stLine;
-		$gi_sum += $stInfo[1];
-		$gi_hash{$stInfo[0]} = $stInfo[1];
-	}
-	
-	my $lim = $gi_sum / $config->{Thread}{thread_num};
-	my $temp_sum = 0;
-	my $gi_idx = 0;
-	
-	my @temp_cds = glob("$temp_sh/temp_cds*.sh");
-	for(my $i = 0 ; $i < @temp_cds; $i++)
-	{
-		system("rm -rf $temp_cds[$i]");
-	}
 
-	foreach my $key (keys %gi_hash)
-	{
-		if ($gi_hash{$key} + $temp_sum > $lim)
-		{
-			open(TMP, ">>$temp_sh/temp_cds$gi_idx.sh");
-			print TMP "perl $script_path/prepare_CDS.pl $groupinfo_path/$key.txt $config->{required_option}{CDS_path} $temp_cds\n";
-			print TMP "wait;\n";
-			$gi_idx++;
-			$temp_sum = 0;
-			close(TMP);
-		}
-		else
-		{
-			open(TMP, ">>$temp_sh/temp_cds$gi_idx.sh");
-	                print TMP "perl $script_path/prepare_CDS.pl $groupinfo_path/$key.txt $config->{required_option}{CDS_path} $temp_cds\n";
-			$temp_sum += $gi_hash{$key};
-			print TMP "wait;\n";
-			close(TMP);
-		}
-		
-	}
-	open(CDS, ">$temp_sh/Run_cds.sh");
-	my @temp_cds_sh = glob("$temp_sh/temp_cds*.sh");
-	for(my $i = 0; $i < @temp_cds_sh ; $i++)
-	{
-		print CDS "sh $temp_sh/temp_cds$i.sh &\n";
-	}
-	print CDS "wait;\n";
-	close(CDS);
+	my $start_time = time();
+
+	## split pep by 'prefix_group'
+	system("perl $script_path/prepare_pep.pl $config->{required_option}{group_info} $config->{required_option}{pep_fasta} $config->{ML_option}{size_threshold} $temp_pep");
+
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_pep pep.fa > duplication_validation.log");
+
 	
-	system("sh $temp_sh/Run_cds.sh");
+	## run msa
+	system ("perl $script_path/bulk_msa.pl $temp_pep $temp_msa > $temp_sh/total_msa.sh");
+
+	my @temp = glob ("$temp_pep/*pep.fa");
+	my $total = scalar keys @temp;
+	my $num = int ($total / $config->{Thread}{thread_num}) + 1;
+	my $num_perl = $num * 3;
+
+	system ("split -d -l $num --additional-suffix=.sh \"$temp_sh\/total_msa.sh\" \"$temp_sh\/temp_msa\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_msa > $temp_sh/Run_msa.sh");
+
+	system("sh $temp_sh/Run_msa.sh >$temp_sh/Run_msa.log 2>$temp_sh/Run_msa.log2");	## bulk
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_msa mafft >> duplication_validation.log");
+
+
+	## run tree by hybrid ml
+	system ("perl $script_path/bulk_tree.pl $temp_sh/../hybrid_algorithm.info $temp_msa $temp_tree > $temp_sh/total_tree.sh");
+
+	system ("split -d -l $num --additional-suffix=.sh \"$temp_sh\/total_tree.sh\" \"$temp_sh\/temp_tree\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_tree > $temp_sh/Run_tree.sh");
+
+	system("sh $temp_sh/Run_tree.sh >$temp_sh/Run_tree.log 2>$temp_sh/Run_tree.log2");	## bulk
+
+
+	## copy and rename nwk file
+	system ("perl $script_path/copy_tree.pl $temp_tree $temp_raw_nwk > $temp_sh/total_copy_tree.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_copy_tree.sh\" \"$temp_sh\/temp_copy_tree\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_copy_tree > $temp_sh/Run_copy_tree.sh");
+	
+	system ("sh $temp_sh/Run_copy_tree.sh >$temp_sh/Run_copy_tree.sh.log 2>$temp_sh/Run_copy_tree.sh.log2");	## bulk
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_raw_nwk nwk >> duplication_validation.log");
+	
+	
+	## detect multiple pair
+	system ("perl $script_path/bulk_index_node.pl $temp_raw_nwk $script_path > $temp_sh/total_index_raw.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_index_raw.sh\" \"$temp_sh\/temp_index_raw\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_index_raw > $temp_sh/Run_index_raw.sh");
+
+	system ("sh $temp_sh/Run_index_raw.sh >$temp_sh/Run_index_raw.log 2>$temp_sh/Run_index_raw.log2");	## bulk
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_raw_nwk nodeinfo >> duplication_validation.log");
+
+
+	## extract cds from multiple pair
+	system ("perl $script_path/bulk_extract_multipair_cds.pl $temp_raw_nwk $script_path $config->{required_option}{cds_fasta} $temp_multi > $temp_sh/total_multi_cds.sh");
+	
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_multi_cds.sh\" \"$temp_sh\/temp_multi_cds\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_cds > $temp_sh/Run_multi_cds.sh");
+
+	system ("sh $temp_sh/Run_multi_cds.sh >$temp_sh/Run_multi_cds.log 2>$temp_sh/Run_multi_cds.log2");	## bulk
+
+
+	## run prank ks for multiple pair
+	system ("perl $script_path/bulk_prank_kaks.pl $script_path $temp_multi cds.fa $config->{program_path}{prank_path} $config->{program_path}{kaks_path} $config->{kaks_cal_option}{method} $config->{kaks_cal_option}{genetic_code} $config->{PRANK_option}{sleep_time} > $temp_sh/total_multi_ks.sh");
+
+	my $num_ks = $num * 4;
+	
+	system ("split -d -l $num_ks --additional-suffix=.sh \"$temp_sh\/total_multi_ks.sh\" \"$temp_sh\/temp_multi_ks\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_ks > $temp_sh/Run_multi_ks.sh");
+	
+	system ("sh $temp_sh/Run_multi_ks.sh >$temp_sh/Run_multi_ks.log 2>$temp_sh/Run_multi_ks.log2");	## bulk	
+	system ("rm -rf tmpdirprank*");
+	
+	system ("perl $script_path/validate_run_out.pl $temp_multi cds.fa kaks >> duplication_validation.log");
+
+
+	## build matrix and run hcluster for multiple pair
+	system ("perl $script_path/bulk_ks_to_matrix.pl $temp_multi combi $script_path > $temp_sh/total_multi_matrix.sh");
+	
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_multi_matrix.sh\" \"$temp_sh\/temp_multi_matrix\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_matrix > $temp_sh/Run_multi_matrix.sh");
+
+	system ("sh $temp_sh/Run_multi_matrix.sh >$temp_sh/Run_multi_matrix.log 2>$temp_sh/Run_multi_matrix.log2");	## bulk
+
+	system ("perl $script_path/validate_run_out.pl $temp_multi combi matrix >> duplication_validation.log");
+	
+
+	## run hcluster for multiple pair
+	system ("perl $script_path/bulk_hcluster_rscript.pl $temp_multi matrix $script_path > $temp_sh/total_multi_hcluster.sh");
+
+	system ("split -d -l $num --additional-suffix=.sh \"$temp_sh\/total_multi_hcluster.sh\" \"$temp_sh\/temp_multi_hcluster\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_hcluster > $temp_sh/Run_multi_hcluster.sh");
+
+	system ("sh $temp_sh/Run_multi_hcluster.sh >$temp_sh/Run_multi_hcluster.log 2>$temp_sh/Run_multi_hcluster.log2");    ## bulk
+	
+	system ("perl $script_path/validate_run_out.pl $temp_multi matrix nwk >> duplication_validation.log");
+
+	
+	## replace multiple pair subtree nwk and build revised nwk
+	system ("perl $script_path/bulk_replace_multipair_hcluster.pl $temp_raw_nwk nodeinfo $temp_multi $temp_replace $script_path > $temp_sh/total_multi_temp.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_multi_temp.sh\" \"$temp_sh\/temp_multi_temp\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_temp > $temp_sh/Run_multi_temp.sh");
+
+	system ("sh $temp_sh/Run_multi_temp.sh >$temp_sh/Run_multi_temp.log 2>$temp_sh/Run_multi_temp.log2");    ## bulk
+	
+	system ("perl $script_path/bulk_lift_gene_in_nodeinfo.pl $temp_replace nodeinfo_temp $script_path > $temp_sh/total_multi_noderev.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_multi_noderev.sh\" \"$temp_sh\/temp_multi_noderev\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_noderev > $temp_sh/Run_multi_noderev.sh");
+
+	system ("sh $temp_sh/Run_multi_noderev.sh >$temp_sh/Run_multi_noderev.log 2>$temp_sh/Run_multi_noderev.log2");    ## bulk
+	
+	system ("perl $script_path/bulk_nodeinfo_to_newick.pl $temp_replace nodeinfo_revised $temp_revise_nwk scripts > $temp_sh/total_multi_revise.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_multi_revise.sh\" \"$temp_sh\/temp_multi_revise\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_revise > $temp_sh/Run_multi_revise.sh");
+
+	system ("sh $temp_sh/Run_multi_revise.sh >$temp_sh/Run_multi_revise.log 2>$temp_sh/Run_multi_revise.log2");    ## bulk
+
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_revise_nwk nwk >> duplication_validation.log");
+
+	system ("perl $script_path/bulk_validate_genecount.pl $temp_raw_nwk nwk $temp_revise_nwk $script_path > $temp_sh/total_multi_val.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_multi_val.sh\" \"$temp_sh\/temp_multi_val\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_multi_val > $temp_sh/Run_multi_val.sh");
+
+	system ("sh $temp_sh/Run_multi_val.sh >$temp_sh/Run_multi_val.log 2>$temp_sh/Run_multi_val.log2");	## bulk
+	system ("find $temp_revise_nwk -type f -exec grep \"MISMATCH\" {} + >> duplication_validation.log");
+
+	my @tmp = glob ("$temp_revise_nwk/*nwk");
+	my $output_count = scalar keys @tmp;
+
+	######### print log file #########
+	my $timestamp = strftime("%Y-%m-%d %H:%M:%S", localtime);
+
+	my $total_sec = time() - $start_time;
+	my $hr  = int($total_sec / 3600);
+	my $min = int(($total_sec % 3600) / 60);
+	my $sec = $total_sec % 60;
+
+	my $time_string = sprintf("%d hr %d min %d sec", $hr, $min, $sec);
+
+	open (OUT, ">>duplication_progress.log");
+	print OUT "------------------------------------------------------------\n";
+	print OUT "[INFO] $timestamp - DupHIST Step1. Inferred duplication hierarchy using Hybrid ML\n";
+	print OUT "   - Task:        Hybrid-ML Tree Construction\n";
+	print OUT "   - Input:       $temp_pep/*pep.fa\n";   
+	print OUT "   - Output:      $temp_revise_nwk/*nwk\n";  
+	print OUT "   - Summary:     Total $output_count .nwk files generated successfully\n";
+	print OUT "   - Status:      COMPLETED SUCCESSFULLY ✔\n";
+	print OUT "   - Runtime:     $time_string\n";
+	print OUT "------------------------------------------------------------\n";
+	close (OUT);
+	##################################
+	
+	$step = 2;
 }
 
-my $group_cnt = 0;
-if($step <=2)
+if ($step == 2)
 {
-	system("perl $script_path/Count_files.pl $temp_cds > number_of_pairs");
-	open(CNT, "number_of_pairs");
-	system("rm -rf number_of_pairs");
-	while(my $stLine = <CNT>)
-	{
-		chomp $stLine;
-		$group_cnt = $stLine;
-	}
-	open(LOG, ">>duplication_progress.log");
-        
-	if ($gi_sum == $group_cnt)
-	{
-		print LOG "$group_cnt paris CDS file Done\n\n";
-	}
-	elsif($group_cnt == 0)
-	{
-		print LOG "All CDS files may not have been created. You should check it out.\n";
-                print LOG "Error 1\n";
-                exit();
-	}
-	else
-	{
-		print LOG "All CDS files may not have been created. You should check it out.\n";
-		print LOG "Error 1\n";
-		exit();
-	}
-	close(LOG);
-	my @group_info = glob("$groupinfo_path/*");
-	my $max_line = $group_cnt / $config->{Thread}{thread_num};
-	
-	my @temp_pipeline = glob("$temp_sh/temp_pipeline*.sh");
-	for(my $i = 0 ; $i < @temp_pipeline; $i++)
-	{
-	        system("rm -rf $temp_pipeline[$i]");
-	}
-	
-	my $idx = 0;
-	my $i = 0;
+	my $start_time = time();
 
-	open(LOG, ">>duplication_progress.log");
-	print LOG "Alignment & Ks value Calculation Start\n\n";
-	print LOG "-----------Your option\n";
-	print LOG "Alignment Iteration Option : $config->{PRANK_option}{iteration}\n";
-	print LOG "Ks value calculation Option - genetic code : $config->{kaks_cal_option}{genetic_code}\n";
-	print LOG "Ks value calculation Option - method : $config->{kaks_cal_option}{method}\n";
-	print LOG "H-cluster Option - all/each : $config->{statistical_option}{Hcluster_method}\n";
-	print LOG "Thread : $config->{Thread}{thread_num}\n";
-	print LOG "-----------------------------\n\n";
+	my @temp = glob ("$temp_revise_nwk/*nwk");
+	my $total = scalar keys @temp;
+	my $num = int ($total / $config->{Thread}{thread_num}) + 1;
+	my $num_perl = $num * 3;
 
-	close(LOG);
-	my $line_num=0;	
-	my @cds_files = glob("$temp_cds/*");
-	for(my $i; $i< @cds_files; $i++)
-	{
-		open(SH, ">>$temp_sh/temp_pipeline$idx.sh");
-		$cds_files[$i] =~ s/$temp_cds\///g;
-		$cds_files[$i] =~ s/.CDS.fasta//g;
-		if ($line_num < $max_line)
-		{
-			print SH "perl $script_path/prank_to_ks_for_pair.pl $cds_files[$i] $config->{program_path}{PRANK} $config->{PRANK_option}{iteration} $config->{PRANK_option}{sleep_time} $config->{program_path}{kaks} $config->{kaks_cal_option}{method} $config->{kaks_cal_option}{genetic_code} $temp_cds $temp_best $temp_axt $temp_kaks $script_path\n";
-			print SH "wait;\n";
-			close(SH);
-		}
-		else
-		{
-			$line_num = 0;
-			$idx += 1;
-			open(SH, ">>$temp_sh/temp_pipeline$idx.sh");
-			print SH "perl $script_path/prank_to_ks_for_pair.pl $cds_files[$i] $config->{program_path}{PRANK} $config->{PRANK_option}{iteration} $config->{PRANK_option}{sleep_time} $config->{program_path}{kaks} $config->{kaks_cal_option}{method} $config->{kaks_cal_option}{genetic_code} $temp_cds $temp_best $temp_axt $temp_kaks $script_path\n";
-	                print SH "wait;\n";
-			close(SH);
-		}
-		$line_num++;
-	}
-	
-	my @tmppipeline = glob ("$temp_sh/temp_pipeline*sh");
-	open(SH,">$temp_sh/Run_pipeline.sh");
-	for(my $i = 0; $i < @tmppipeline; $i++)
-	{
-		print SH "sh $temp_sh/temp_pipeline$i.sh &\n";
-	}
-	print SH "wait;\n";
-	close(SH);
-	
-	system("sh $temp_sh/Run_pipeline.sh");
-	
-	my @tmpdir = glob("tmpdirprank*");
-	for(my $i=0; $i < @tmpdir; $i++)
-	{
-		system("rm -rf $tmpdir[$i]");
-	}
+	## index node of nwk
+	system ("perl $script_path/bulk_index_node.pl $temp_revise_nwk $script_path > $temp_sh/total_index_node.sh");
 
-	my @ks_files = glob("$temp_kaks/*.kaks");
-	open(LOG, ">>duplication_progress.log");
-	if ($#ks_files == $#cds_files)
-	{
-		print LOG "Alignment & Ks value calculation Done ($group_cnt)\n";
-	}
-	else
-	{
-		my $cds_file_count = $#cds_files + 1;
-		my $ks_file_count = $#ks_files + 1;
-		print LOG "All CDS pairs may not have been analysis. You should check it out.\n";
-		print LOG "Among $cds_file_count CDS pairs, $ks_file_count CDS pairs of alignment & Ks value calculation Done\n";
-                print LOG "Error 2\n";
-		#exit();
-	}
-	close(LOG);
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_index_node.sh\" \"$temp_sh\/temp_index_node\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_index_node > $temp_sh/Run_index_node.sh");
+
+	system ("sh $temp_sh/Run_index_node.sh >$temp_sh/Run_index_node.log 2>$temp_sh/Run_index_node.log2");	## bulk
+
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_revise_nwk nodeinfo >> duplication_validation.log");
+	system ("find $temp_revise_nwk -type f -exec grep \"gene-gene-multi\" {} + >> duplication_validation.log");
+
+
+	## build pair info for ks calculation
+	system ("perl $script_path/bulk_build_pair.pl $temp_revise_nwk nodeinfo $script_path > $temp_sh/total_rev_pair.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_rev_pair.sh\" \"$temp_sh\/temp_rev_pair\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_rev_pair > $temp_sh/Run_rev_pair.sh");
+
+	system ("sh $temp_sh/Run_rev_pair.sh >$temp_sh/Run_rev_pair.log 2>$temp_sh/Run_rev_pair.log2");  ## bulk
+	
+	system ("perl $script_path/validate_run_out.pl $temp_revise_nwk nwk pair >> duplication_validation.log");
+
+	## extract cds pair for ks calculation
+	system ("perl $script_path/bulk_extract_pair_cds.pl $temp_revise_nwk pair $config->{required_option}{cds_fasta} $temp_cds $script_path > $temp_sh/total_rev_cds.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_rev_cds.sh\" \"$temp_sh\/temp_rev_cds\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_rev_cds > $temp_sh/Run_rev_cds.sh");
+
+	system ("sh $temp_sh/Run_rev_cds.sh >$temp_sh/Run_rev_cds.log 2>$temp_sh/Run_rev_cds.log2");  ## bulk
+	
+	system ("cat $temp_revise_nwk/*pair > $temp_revise_nwk/pair_cat");
+	system ("perl $script_path/validate_cdsnum.pl $temp_revise_nwk/pair_cat $temp_cds cds.fa >> duplication_validation.log");
+
+	## run prank and kaks_calculator	
+	system ("perl $script_path/bulk_prank_kaks.pl $script_path $temp_cds cds.fa $config->{program_path}{prank_path} $config->{program_path}{kaks_path} $config->{kaks_cal_option}{method} $config->{kaks_cal_option}{genetic_code} $config->{PRANK_option}{sleep_time} > $temp_sh/total_rev_ks.sh");
+
+
+	my @temp = glob ("$temp_cds/*cds.fa");
+	my $total = scalar keys @temp;
+	my $num = int ($total / $config->{Thread}{thread_num}) + 1;
+	my $num_ks = $num * 4;
+
+	system ("split -d -l $num_ks --additional-suffix=.sh \"$temp_sh\/total_rev_ks.sh\" \"$temp_sh\/temp_rev_ks\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_rev_ks > $temp_sh/Run_rev_ks.sh");
+
+	system ("sh $temp_sh/Run_rev_ks.sh >$temp_sh/Run_rev_ks.log 2>$temp_sh/Run_rev_ks.log2");        ## bulk
+	system ("rm -rf tmpdirprank*");
+
+	system ("perl $script_path/validate_run_out.pl $temp_cds cds.fa kaks >> duplication_validation.log");
+
+	## cat kaks and index pairks
+	system ("perl $script_path/cat_kaks.pl $temp_sh/../hybrid_algorithm.info $temp_cds kaks > $temp_sh/total_rev_cat.sh");
+
+	my @temp = glob ("$temp_revise_nwk/*nwk");
+	my $total = scalar keys @temp;
+	my $num = int ($total / $config->{Thread}{thread_num}) + 1;
+	my $num_perl = $num * 3;
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_rev_cat.sh\" \"$temp_sh\/temp_rev_cat\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_rev_cat > $temp_sh/Run_rev_cat.sh");
+
+	system ("sh $temp_sh/Run_rev_cat.sh >$temp_sh/Run_rev_cat.log 2>$temp_sh/Run_rev_cat.log2");        ## bulk
+	
+	system ("perl $script_path/validate_run.pl $temp_sh/../hybrid_algorithm.info $temp_cds catks >> duplication_validation.log");
+	
+
+	system ("perl $script_path/bulk_index_pairks.pl $temp_cds catks $temp_revise_nwk $script_path > $temp_sh/total_rev_pairks.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_rev_pairks.sh\" \"$temp_sh\/temp_rev_pairks\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_rev_pairks > $temp_sh/Run_rev_pairks.sh");
+
+	system ("sh $temp_sh/Run_rev_pairks.sh >$temp_sh/Run_rev_pairks.log 2>$temp_sh/Run_rev_pairks.log2");        ## bulk
+
+	system ("perl $script_path/validate_run_out.pl $temp_revise_nwk nwk pairks >> duplication_validation.log");
+
+
+	my @tmp = glob ("$temp_revise_nwk/*pairks");
+	my $output_count = scalar keys @tmp;
+
+	######### print log file #########
+	my $timestamp = strftime("%Y-%m-%d %H:%M:%S", localtime);
+
+	my $total_sec = time() - $start_time;
+	my $hr  = int($total_sec / 3600);
+	my $min = int(($total_sec % 3600) / 60);
+	my $sec = $total_sec % 60;
+
+	my $time_string = sprintf("%d hr %d min %d sec", $hr, $min, $sec);
+
+	open (OUT, ">>duplication_progress.log");
+	print OUT "------------------------------------------------------------\n";
+	print OUT "[INFO] $timestamp - DupHIST Step2. Synonymous substitution rate (Ks) estimation\n";
+	print OUT "   - Task:        Calculated Ks based on internode relationships\n";
+	print OUT "   - Input:       $temp_revise_nwk/*nwk\n";
+	print OUT "   - Output:      $temp_revise_nwk/*pairks\n";  
+	print OUT "   - Summary:     Total $output_count .pairks files generated successfully\n";
+	print OUT "   - Status:      COMPLETED SUCCESSFULLY ✔\n";
+	print OUT "   - Runtime:     $time_string\n";
+	print OUT "------------------------------------------------------------\n";
+	close (OUT);
+	##################################
+
+	$step = 3;
 }
 
-if($step <= 3)
+if ($step == 3)
 {
-	open(LOG, ">>duplication_progress.log");
-        print LOG "\nMatrix file start...\n";
-        close(LOG);
+	my $start_time = time();
 
-	## convert ks to matrix by thread
-	my @input_groupinfo = glob ("$groupinfo_path/*.txt");
-	my $group_number = scalar keys @input_groupinfo;
-	my $lim = int ($group_number / $config->{Thread}{thread_num}) + 1;
+	my @temp = glob ("$temp_revise_nwk/*nwk");
+	my $total = scalar keys @temp;
+	my $num = int ($total / $config->{Thread}{thread_num}) + 1;
+	my $num_perl = $num * 3;
 
-	my $ncount = 0;
-	my $nthread = 0;
-	open (TMC, ">$temp_sh/temp_converting_ks.$nthread.sh");
-	for (my $i=0; $i<@input_groupinfo; $i++)
-	{
-		if ($ncount < $lim)
-		{
-			$ncount ++;
-			print TMC ("perl $script_path/ks_to_matrix.pl $temp_kaks $temp_kaks $temp_mat $script_path $input_groupinfo[$i]\n");
-		}
-		else
-		{
-			close TMC;
-			$nthread ++;
-			$ncount = 0;
-			open (TMC, ">$temp_sh/temp_converting_ks.$nthread.sh");
+	## copy input data
+	system ("cp $temp_revise_nwk/*pairks $temp_revise_nwk/*nodeinfo $temp_smooth");
 
-			$ncount ++;
-			print TMC ("perl $script_path/ks_to_matrix.pl $temp_kaks $temp_kaks $temp_mat $script_path $input_groupinfo[$i]\n");
-		}
-	}
-	close TMC;
+	## index ks in node info
+	system ("perl $script_path/bulk_index_ks_avg.pl $temp_smooth pairks $temp_smooth $script_path > $temp_sh/total_sm_avg.sh");
 
-	open (Converting_Ks, ">$temp_sh/Run_converting_ks.sh");
-	my @temp_converting_ks_sh = glob ("$temp_sh/temp_converting_ks.*sh");
-	for (my $i=0; $i<@temp_converting_ks_sh; $i++)
-	{
-		print Converting_Ks "sh $temp_converting_ks_sh[$i] &\n";
-	}
-	print Converting_Ks "wait;\n";
-	close Converting_Ks;
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_sm_avg.sh\" \"$temp_sh\/temp_sm_avg\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_sm_avg > $temp_sh/Run_sm_avg.sh");
 
-	system ("sh $temp_sh/Run_converting_ks.sh");
+	system ("sh $temp_sh/Run_sm_avg.sh >$temp_sh/Run_sm_avg.log 2>$temp_sh/Run_sm_avg.log2");        ## bulk
 	
-	open(LOG, ">>duplication_progress.log");
-        print LOG "\nMatrix file Done\n";
-        close(LOG);
-}
+	system ("perl $script_path/validate_run_out.pl $temp_smooth pairks nodeinfo_ks >> duplication_validation.log");
 
-my $r_input_path = abs_path($temp_mat);
-my $real_each;
-my @tmp_list;
-if($step <=4)
-{
-	open(LOG, ">>duplication_progress.log");
-        print LOG "H-clustering Start...\n";
-        close(LOG);
+	## build geneks 1st
+	system ("perl $script_path/bulk_build_gene_ks_info.pl $temp_smooth nodeinfo_ks $temp_smooth $script_path > $temp_sh/total_sm_1gk.sh");
 
-	## run hclust and ccc by thread
-	my @input_matrice = glob ("$r_input_path/*/*matrix");
-	my $matrice_number = scalar keys @input_matrice;
-	my $lim = int ($matrice_number / $config->{Thread}{thread_num}) + 1;
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_sm_1gk.sh\" \"$temp_sh\/temp_sm_1gk\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_sm_1gk > $temp_sh/Run_sm_1gk.sh");
 
-	my @temp_hclust = glob ("$temp_sh/temp_hclust*.sh");
-	for (my $i=0; $i<@temp_hclust; $i++)
-	{
-		system ("rm -rf $temp_hclust[$i]");
-	}
-
-	my $ncount = 0;
-	my $nthread = 0; 
-	open (TMP, ">$temp_sh/temp_hclust$nthread.sh");
-	for (my $i=0; $i<@input_matrice; $i++)
-	{
-		if ($ncount < $lim)
-		{
-			$ncount ++;
-			print TMP ("perl $script_path/hclustering_ccc_rscript.pl $input_matrice[$i] $hcluster_path/ $ccc_path/ $prefer_order\n");
-		}
-		else
-		{
-			close TMP;
-			$nthread ++;
-			$ncount = 0;
-			open (TMP, ">$temp_sh/temp_hclust$nthread.sh");
-
-			$ncount ++;
-			print TMP ("perl $script_path/hclustering_ccc_rscript.pl $input_matrice[$i] $hcluster_path/ $ccc_path/ $prefer_order\n");
-		}
-	}
-	close TMP;
-
-	open (Hclust, ">$temp_sh/Run_hclust.sh");
-	my @temp_hclust_sh = glob ("$temp_sh/temp_hclust*sh");
-	for (my $i=0; $i<@temp_hclust_sh; $i++)
-	{
-		print Hclust "sh $temp_hclust_sh[$i] &\n";
-	}
-	print Hclust "wait;\n";
-	close Hclust;
-
-	system ("sh $temp_sh/Run_hclust.sh");
+	system ("sh $temp_sh/Run_sm_1gk.sh >$temp_sh/Run_sm_1gk.log 2>$temp_sh/Run_sm_1gk.log2");        ## bulk
 	
-	(my $head_index = $prefer_order) =~ s/,/\t/g;
-	open (TMP, ">head");
-	print TMP "#input_matrix\t$head_index\n";
-	close TMP;
+	system ("perl $script_path/validate_run_out.pl $temp_smooth nodeinfo_ks geneks_1st >> duplication_validation.log");
 
-	system ("cat head $ccc_path/*/*ccc > $hcluster_path/cophenetic_cc.result");
-	system ("rm -rf head");
+	## smooth process (gene 1st -> geneks 4th)	
+	system ("perl $script_path/bulk_smooth_process.pl $temp_smooth geneks_1st $temp_smooth $script_path > $temp_sh/total_smooth.sh");
 
-	if ($config->{statistical_option}{Hcluster_method} eq "each")
-	{
-		my $optimal_path = "$hcluster_path/optimal_each";
-		
-		system("perl $script_path/getDuplicationHistory.pl $optimal_path/");
-		system("perl $script_path/getKAKSRatio_Avrg_mute.pl each $optimal_path/");
-		system("perl $script_path/1.Combine_KS_muteKA_Avrg.pl $optimal_path/ $config->{required_option}{Output_directory}/$config->{Result}{result_filename}");
+	my $num_sm = $num_perl * 7;
+	system ("split -d -l $num_sm --additional-suffix=.sh \"$temp_sh\/total_smooth.sh\" \"$temp_sh\/temp_smooth\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_smooth > $temp_sh/Run_smooth.sh");
 
-		system ("cp $optimal_path/*/*nwk $config->{required_option}{Output_directory}/$config->{Result}{result_dendrogram_dir}");
-	}
+	system ("sh $temp_sh/Run_smooth.sh >$temp_sh/Run_smooth.log 2>$temp_sh/Run_smooth.log2");        ## bulk
+	
+	system ("perl $script_path/validate_run_out.pl $temp_smooth geneks_1st geneks_4th >> duplication_validation.log");
 
-	elsif($config->{statistical_option}{Hcluster_method} eq "all")
-	{
-		my $optimal_path = "$hcluster_path/optimal_all";
-		system("mkdir -p $optimal_path");
+	my @tmp = glob ("$temp_smooth/*geneks_4th");
+	my $output_count = scalar keys @tmp;
 
-		system ("perl $script_path/convert_table_for_rscript.pl $hcluster_path/cophenetic_cc.result $optimal_path/");
-		system ("perl $script_path/method_all_option_statistic.pl $optimal_path/cophenetic_cc.result.forR $optimal_path/");	
-		system ("perl $script_path/method_all_option_select_optimal.pl $optimal_path/aov_lsd_test.comparison.result $prefer_order > $optimal_path/optimal_all_method");
+	######### print log file #########
+	my $timestamp = strftime("%Y-%m-%d %H:%M:%S", localtime);
 
-		my $optimal_method_all = "";
-		open (IN, "$optimal_path/optimal_all_method");
-		while (my $line = <IN>)
-		{
-			chomp $line;
-			$optimal_method_all = $line;
-		}
-		close IN;
+	my $total_sec = time() - $start_time;
+	my $hr  = int($total_sec / 3600);
+	my $min = int(($total_sec % 3600) / 60);
+	my $sec = $total_sec % 60;
 
-		system("perl $script_path/getDuplicationHistory.pl $hcluster_path/$optimal_method_all");
-		system("perl $script_path/getKAKSRatio_Avrg_mute.pl $optimal_method_all $hcluster_path/$optimal_method_all");
-		system("perl $script_path/1.Combine_KS_muteKA_Avrg.pl $hcluster_path/$optimal_method_all $config->{required_option}{Output_directory}/$config->{Result}{result_filename}");
+	my $time_string = sprintf("%d hr %d min %d sec", $hr, $min, $sec);
 
-		system ("cp $hcluster_path/$optimal_method_all/*/*nwk $config->{required_option}{Output_directory}/$config->{Result}{result_dendrogram_dir}");
-	}	
-	open(LOG, ">>duplication_progress.log");
-        print LOG "H-clustering Done\n\n";
-	print LOG "Duplication time calculation Done\n";
-        close(LOG);
+	open (OUT, ">>duplication_progress.log");
+	print OUT "------------------------------------------------------------\n";
+	print OUT "[INFO] $timestamp - DupHIST Step3. Synonymous substitution rate (Ks) smoothing & refinement\n";
+	print OUT "   - Task:        Resolved phylogenetic inconsistencies and smoothed Ks\n";
+	print OUT "   - Input:       $temp_revise_nwk/*pairks\n";
+	print OUT "   - Output:      $temp_smooth/*geneks_4th\n";  
+	print OUT "   - Summary:     Total $output_count .geneks_4th files generated successfully\n";
+	print OUT "   - Status:      COMPLETED SUCCESSFULLY ✔\n";
+	print OUT "   - Runtime:     $time_string\n";
+	print OUT "------------------------------------------------------------\n";
+	close (OUT);
+	##################################
+
+	## build final file
+	system ("perl $script_path/bulk_build_table.pl $temp_smooth geneks_4th $temp_smooth $script_path > $temp_sh/total_final.sh");
+
+	system ("split -d -l $num_perl --additional-suffix=.sh \"$temp_sh\/total_final.sh\" \"$temp_sh\/temp_final\"");
+	system ("perl $script_path/run_bulk.pl $temp_sh temp_final > $temp_sh/Run_final.sh");
+
+	system ("sh $temp_sh/Run_final.sh >$temp_sh/Run_final.log 2>$temp_sh/Run_final.log2");        ## bulk
+	
+	system ("perl $script_path/validate_run_out.pl $temp_smooth geneks_4th table >> duplication_validation.log");
+
+	## copy final files
+	system ("mkdir -p $temp_path/../$config->{Result}{result_dendrogram_dir}");
+	system ("cp $temp_revise_nwk/*nwk $temp_path/../$config->{Result}{result_dendrogram_dir}");
+	
+	my $header = "Species\tGroup\tNode\tPair1\tPair2\tKs";
+	system("printf '$header\n' > $temp_path/../$config->{Result}{result_filename}");
+	system ("cat $temp_smooth/*table >> $temp_path/../$config->{Result}{result_filename}");
+
+	######### print log file #########
+	my $timestamp = strftime("%Y-%m-%d %H:%M:%S", localtime);
+
+	my $total_sec = time() - $total_start_time;
+	my $hr  = int($total_sec / 3600);
+	my $min = int(($total_sec % 3600) / 60);
+	my $sec = $total_sec % 60;
+
+	my $time_string = sprintf("%d hr %d min %d sec", $hr, $min, $sec);
+	my $total_data = `wc -l < $temp_path/../$config->{Result}{result_filename}` - 1;
+
+	open (OUT, ">>duplication_progress.log");
+	print OUT "============================================================\n";
+	#print OUT "------------------------------------------------------------\n";
+	print OUT "[FINISH] $timestamp - DupHIST Pipeline All Steps Completed\n";
+	print OUT "   - Summary:     Total $output_count prefix_group data analyzed successfully\n";	
+	print OUT "   - Summary:     Total $total_data duplication events recorded\n";
+	print OUT "   - Final Table: $config->{required_option}{output_dir}/$config->{Result}{result_filename}\n";
+	print OUT "   - Final Tree:  $config->{required_option}{output_dir}/$config->{Result}{result_dendrogram_dir}\n";
+	print OUT "   - Total Time:  $time_string\n";
+	print OUT "   - Status:      ALL PROCESSES COMPLETED SUCCESSFULLY ✔\n";
+	#print OUT "------------------------------------------------------------\n";
+	print OUT "============================================================\n";
+	close (OUT);
+	##################################
+	
+	print "\n[DupHIST] Analysis is successfully finished.\n";
+	print "[DupHIST] Final Table: $config->{required_option}{output_dir}/$config->{Result}{result_filename}\n";
+	print "[DupHIST] Final Tree:  $config->{required_option}{output_dir}/$config->{Result}{result_dendrogram_dir}\n\n";
 }

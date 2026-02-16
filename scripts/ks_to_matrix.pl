@@ -1,77 +1,68 @@
 use strict;
 
-my $inputpath = $ARGV[0];
-my $stOutDir = $ARGV[1];
-my $matrixpath = $ARGV[2];
-my $script = $ARGV[3];
-my $stGroupInfo = $ARGV[4];
-my $groupPrefix;
-my @stkaks;
-my $nGene1;
-my $nGene2;
+my $combi_file = $ARGV[0];
+my $pair_path = $ARGV[1];
 
-$groupPrefix = $stGroupInfo;
-print "$groupPrefix\n";
-$groupPrefix =~ s/.txt//g;
-my @stTemp = split('/',$groupPrefix);
-$groupPrefix = $stTemp[3];
-my @stTemp2 = split('_',$groupPrefix);
-my $species = $stTemp2[0];
-if ( -d "$matrixpath/$species")
+(my $kaks_prefix = $combi_file) =~ s/\.combi//g;
+
+my (%ks);
+my @glob = glob ("$kaks_prefix*kaks");
+for (my $i=0; $i<@glob; $i++)
 {
-}
-else
-{
-	mkdir "$matrixpath/$species";
-}
-@stkaks = glob("$inputpath/$groupPrefix.*kaks");
-print "$groupPrefix\t$#stkaks\n";	
-open(KS, ">$stOutDir/$groupPrefix.KS");
-open(TotalInfo, ">$stOutDir/$groupPrefix.Kaks");
-my @stTempData;	
-for(my $j=0; $j<@stkaks; $j++)
-{
-	@stTemp = split('\.',$stkaks[$j]);
-	$nGene1 = $stTemp[1]-1;
-	$nGene2 = $stTemp[2]-1;
-	open(DATA, $stkaks[$j]);
- 	while(my $stLine = <DATA>)
+	open (FH, "$glob[$i]");
+	while (my $line = <FH>)
 	{
-		chomp($stLine);
-                next if ($stLine =~ /Method/);
-                my @stInfo = split /[\s\t]+/, $stLine;
+		chomp $line;
+		next if $line =~ /^Sequence/;
+		my @info = split /\t/, $line;
 
-                print TotalInfo "$stLine\n";
+		my $gene_pair = $info[0];
+		my $ks = $info[3];
 
-                if($stInfo[3] eq "NA")
-                {
-			$stInfo[3] = 0;
-                }
-                elsif($stInfo[3] !~ /[0-9]/)
-                {
-                        $stInfo[3] = 100;
-                }
-                my $stTempData = "$nGene1\t$nGene2\t$stInfo[3]\t$stInfo[0]";
-                push(@stTempData, $stTempData);
+		my @temp = split /-/, $gene_pair;
+		my $gene1 = $temp[0];
+		my $gene2 = $temp[1];
+
+		$ks{$gene1}{$gene2} = $ks;
+		$ks{$gene2}{$gene1} = $ks;
 	}
-	close(DATA);
 }
-@stTempData = sort 
-{
-	($a =~ /^([^\t]+)[\t]+/)[0] <=> ($b =~ /^([^\t]+)[\t]+/)[0] || 
-	($a =~ /^[^\t]+[\t]+([^\t]+)[\t]+/)[0] <=> ($b =~ /^[^\t]+[\t]+([^\t]+)[\t]+/)[0]} @stTempData;
 
-for(my $k=0; $k<@stTempData; $k++)
+my $line = "";
+foreach my $gene1 (sort {$a cmp $b} keys %ks)
 {
-        print KS "$stTempData[$k]\n";
+	$line .= "$gene1\t";
 }
-close(KS);
-my $nFilesize = -s "$stOutDir/$groupPrefix.KS";
-if($nFilesize < 1)
+$line =~ s/\t$//;
+print "$line\n";
+
+foreach my $gene1 (sort {$a cmp $b} keys %ks)
 {
-        system("rm -rf $stOutDir/$groupPrefix.KS");
-}
-if($nFilesize > 0)
-{
-        system("perl $script/MakeRDistFormat.pl $stOutDir/$groupPrefix.KS > $matrixpath/$species/$groupPrefix.matrix");
+	my $line = "";
+	foreach my $gene2 (sort {$a cmp $b} keys %ks)
+	{
+		my $ks = "";
+		if ($gene1 eq $gene2)
+		{
+			$ks = "0";
+		}
+		else
+		{
+			$ks = $ks{$gene1}{$gene2};
+		}
+
+		if ($ks eq "NA")
+		{	
+			$ks = 0;
+		}
+		elsif ($ks eq "nan" || $ks eq "-nan")
+		{
+			$ks = 100;
+		}
+
+		$line .= "$ks\t";
+	}
+	$line =~ s/\t$//;
+
+	print "$line\n";
 }
